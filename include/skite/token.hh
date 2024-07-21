@@ -10,7 +10,7 @@
 namespace skite {
 
 enum TokenKind {
-    TOKEN_KIND_END,
+    TOKEN_KIND_NONE,
     TOKEN_KIND_ERROR,
     TOKEN_KIND_STRING,
     TOKEN_KIND_COMMENT,
@@ -95,7 +95,7 @@ struct TokenPosition {
 
 struct Token {
     Token(TokenPosition position = {}) :
-        kind(TOKEN_KIND_END), value {}, position(position) {}
+        kind(TOKEN_KIND_NONE), value {}, position(position) {}
 
     Token(TokenKind kind, TokenValue const& value, TokenPosition position = {}) :
         kind(kind), value(kind, value), position(position) {}
@@ -104,10 +104,18 @@ struct Token {
         kind(kind), value(kind, std::move(value)), position(position) {}
 
     Token(Token&& that) :
-        kind(that.kind), value(that.kind, std::move(that.value)) {}
+        kind(that.kind), value(that.kind, std::move(that.value))
+    {
+        that.kind = TOKEN_KIND_NONE;
+    }
 
     inline ~Token() {
         value.release(kind);
+    }
+
+    inline void release_value() {
+        value.release(kind);
+        kind = TOKEN_KIND_NONE;
     }
 
     TokenKind kind;

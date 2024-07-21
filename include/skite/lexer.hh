@@ -14,13 +14,26 @@ class Lexer {
 public:
     void init(CodeCursor* cursor);
 
-    /// Advances to the next token and returns it.
-    Token next();
+    void advance();
+
+    /// Returns a reference to the current token.
+    inline Token const& get() const {
+        return token;
+    }
+
+    /// Takes the current token.
+    /// @note subsequent calls to this function or `get`,
+    ///       will return a token of kind `TOKEN_KIND_NONE`.
+    /// @note call `advance` to update the current token.
+    inline Token take() {
+        return std::move(token);
+    }
 
 private:
     CodeCursor* cursor;
-
     char32_t current_char;
+
+    Token token;
 
     /// Pushes the current lexer state.
     /// @note use `pop_state` to recover the last state pushed.
@@ -42,18 +55,16 @@ private:
     /// returns false if none is found, otherwise true.
     bool read_identifier_raw(std::string& output);
 
+    bool read_puntuaction();
+    bool read_separator();
+    bool read_identifier_or_keyword();
+    bool read_string();
+    bool read_number();
+    bool read_comment();
+    bool read_special();
+    void process_single_line_comment();
+    void process_multi_line_comment();
     bool process_escape_sequence(std::string& output);
-
-    bool read_puntuaction(Token& token);
-    bool read_separator(Token& token);
-    bool read_identifier_or_keyword(Token& token);
-    bool read_string(Token& token);
-    bool read_number(Token& token);
-    bool read_comment(Token& token);
-    bool read_special(Token& token);
-
-    void process_single_line_comment(Token& token);
-    void process_multi_line_comment(Token& token);
 };
 
-} // namespace skite::lexer
+} // namespace skite

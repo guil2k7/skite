@@ -37,11 +37,11 @@ TokenValue::TokenValue(TokenKind kind, TokenValue const& that) {
         string = that.string;
         break;
 
-    case TOKEN_KIND_END:
-        break;
-
     case TOKEN_KIND_ERROR:
         error = that.error;
+        break;
+
+    default:
         break;
     }
 }
@@ -76,11 +76,11 @@ TokenValue::TokenValue(TokenKind kind, TokenValue&& that) {
         string = std::move(that.string);
         break;
 
-    case TOKEN_KIND_END:
-        break;
-
     case TOKEN_KIND_ERROR:
         error = that.error;
+        break;
+
+    default:
         break;
     }
 }

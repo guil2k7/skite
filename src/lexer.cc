@@ -43,8 +43,8 @@ void Lexer::init(CodeCursor* cursor) {
     next_char();
 }
 
-Token Lexer::next() {
-    static bool (Lexer::*const READ_TABLE[])(Token&) = {
+void Lexer::advance() {
+    static bool (Lexer::*const READ_TABLE[])() = {
         &Lexer::read_comment,
         &Lexer::read_puntuaction,
         &Lexer::read_separator,
@@ -57,21 +57,21 @@ Token Lexer::next() {
     constexpr size_t READ_TABLE_SIZE
         = sizeof READ_TABLE / sizeof READ_TABLE[0];
 
+    if (token.kind != TOKEN_KIND_NONE)
+        token.release_value();
+
     skip_whitespace();
 
-    Token token;
     token.position.line = cursor->get_line_number();
     token.position.column = cursor->get_column_number();
 
     for (size_t i = 0; i < READ_TABLE_SIZE; ++i) {
-        if ((*this.*READ_TABLE[i])(token))
+        if ((*this.*READ_TABLE[i])())
             break;
     }
 
     token.position.line_end = cursor->get_line_number();
     token.position.column_end = cursor->get_column_number();
-
-    return token;
 }
 
 inline void Lexer::push_state() {
@@ -122,23 +122,7 @@ bool Lexer::read_identifier_raw(std::string& output) {
     return true;
 }
 
-bool Lexer::process_escape_sequence(std::string& output) {
-    switch (current_char) {
-    case 'n': output.push_back('\n'); break;
-    case 't': output.push_back('\t'); break;
-    case 'r': output.push_back('\r'); break;
-    case '\\': output.push_back('\\'); break;
-
-    default:
-        return false;
-    }
-
-    next_char();
-
-    return true;
-}
-
-bool Lexer::read_puntuaction(Token& token) {
+bool Lexer::read_puntuaction() {
     Puntuaction puntuaction;
 
     switch (current_char) {
@@ -159,7 +143,7 @@ bool Lexer::read_puntuaction(Token& token) {
     return true;
 }
 
-bool Lexer::read_separator(Token& token) {
+bool Lexer::read_separator() {
     Separator separator;
 
     switch (current_char) {
@@ -184,7 +168,7 @@ bool Lexer::read_separator(Token& token) {
     return true;
 }
 
-bool Lexer::read_identifier_or_keyword(Token& token) {
+bool Lexer::read_identifier_or_keyword() {
     std::string string;
 
     if (!read_identifier_raw(string))
@@ -204,7 +188,7 @@ bool Lexer::read_identifier_or_keyword(Token& token) {
     return true;
 }
 
-bool Lexer::read_string(Token& token) {
+bool Lexer::read_string() {
     if (current_char != '"')
         return false;
 
@@ -217,12 +201,8 @@ bool Lexer::read_string(Token& token) {
         if (chr == '\\') {
             next_char();
 
-            if (!process_escape_sequence(text)) {
-                token.kind = TOKEN_KIND_ERROR;
-                token.value.error = LEXER_ERROR_UNKNOWN_ESCAPE;
-                
+            if (process_escape_sequence(text))
                 return true;
-            }
 
             chr = current_char;
         }
@@ -240,7 +220,7 @@ bool Lexer::read_string(Token& token) {
     return true;
 }
 
-bool Lexer::read_number(Token& token) {
+bool Lexer::read_number() {
     // TODO: Add support for others kinds and bases.
 
     if (!is_digit(current_char))
@@ -262,7 +242,7 @@ bool Lexer::read_number(Token& token) {
     return true;
 }
 
-bool Lexer::read_comment(Token& token) {
+bool Lexer::read_comment() {
     if (current_char != '/')
         return false;
 
@@ -271,11 +251,11 @@ bool Lexer::read_comment(Token& token) {
     switch (next_char()) {
     case '/':
         next_char();
-        process_single_line_comment(token);
+        process_single_line_comment();
     
     case '*':
         next_char();
-        process_multi_line_comment(token);
+        process_multi_line_comment();
 
     default:
         pop_state();
@@ -287,21 +267,20 @@ bool Lexer::read_comment(Token& token) {
     return true;
 }
 
-bool Lexer::read_special(Token& token) {
+bool Lexer::read_special() {
     if (current_char != '\0') {
         token.kind = TOKEN_KIND_ERROR;
         token.value.error = LEXER_ERROR_UNKNOWN_CHAR;
 
         next_char();
-    }
-    else {
-        token.kind = TOKEN_KIND_END;
+        
+        return true;
     }
 
-    return true;
+    return false;
 }
 
-void Lexer::process_single_line_comment(Token& token) {
+void Lexer::process_single_line_comment() {
     char chr = current_char;
 
     if (chr == '/') {
@@ -327,7 +306,7 @@ void Lexer::process_single_line_comment(Token& token) {
     token.value.comment.is_multiline = false;
 }
 
-void Lexer::process_multi_line_comment(Token& token) {
+void Lexer::process_multi_line_comment() {
     char chr = current_char;
 
     if (chr == '*') {
@@ -361,4 +340,23 @@ void Lexer::process_multi_line_comment(Token& token) {
     token.kind = TOKEN_KIND_COMMENT;
     token.value.comment.text = std::move(text);
     token.value.comment.is_multiline = true;
+}
+
+bool Lexer::process_escape_sequence(std::string& output) {
+    switch (current_char) {
+    case 'n': output.push_back('\n'); break;
+    case 't': output.push_back('\t'); break;
+    case 'r': output.push_back('\r'); break;
+    case '\\': output.push_back('\\'); break;
+
+    default:
+        token.kind = TOKEN_KIND_ERROR;
+        token.value.error = LEXER_ERROR_UNKNOWN_ESCAPE;
+
+        return true;
+    }
+
+    next_char();
+
+    return false;
 }
